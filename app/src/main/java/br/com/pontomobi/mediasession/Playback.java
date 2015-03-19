@@ -119,7 +119,7 @@ public interface Playback {
         void onError(String error);
 
         /**
-         * @param mediaId being currently played
+         * @param item being currently played
          */
         void onMetadataChanged(MediaMetadataCompat item);
     }

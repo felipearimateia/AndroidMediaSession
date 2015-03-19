@@ -19,6 +19,7 @@ import android.support.v4.media.session.MediaControllerCompat;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.support.v4.media.session.PlaybackStateCompat;
 
+import com.squareup.picasso.MemoryPolicy;
 import com.squareup.picasso.Picasso;
 import com.squareup.picasso.Target;
 
@@ -295,7 +296,8 @@ public class MediaNotificationManager extends BroadcastReceiver {
 
     private void fetchBitmapFromURLAsync(final String bitmapUrl, final NotificationBuilder builder) {
 
-        Picasso.with(mService).load(bitmapUrl).into(new Target() {
+
+        Picasso.with(mService).load(bitmapUrl).memoryPolicy(MemoryPolicy.NO_CACHE).into(new Target() {
             @Override
             public void onBitmapLoaded(Bitmap bitmap, Picasso.LoadedFrom from) {
                 if (bitmap != null && !bitmap.isRecycled()) {

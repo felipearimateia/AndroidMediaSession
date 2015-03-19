@@ -10,6 +10,7 @@ import android.media.AudioManager;
 import android.media.MediaDescription;
 import android.media.MediaMetadata;
 import android.media.MediaPlayer;
+import android.media.RemoteControlClient;
 import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.Bundle;
@@ -56,7 +57,6 @@ public class MediaPlayerService extends Service implements Playback.Callback {
         mediaButtonReceiver = new ComponentName(this, MediaButtonReceiver.class);
 
         mMediaSession = new MediaSessionCompat(this, "MediaPlayerService", mediaButtonReceiver, getMediaPendingIntent());
-        mMediaSession.setMediaButtonReceiver(getMediaPendingIntent());
 
         mMediaSession.setCallback(new MediaSessionCallback());
         mMediaSession.setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS | MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS);
@@ -100,6 +100,14 @@ public class MediaPlayerService extends Service implements Playback.Callback {
             mNotificationManager.getTransportControls().skipToNext();
         } else if( action.equalsIgnoreCase( Constants.ACTION_STOP ) ) {
             mNotificationManager.getTransportControls().stop();
+        }
+        else if (action.equalsIgnoreCase(Constants.ACTION_PLAY_PAUSE)){
+            if (mPlayback.isPlaying()) {
+                mNotificationManager.getTransportControls().pause();
+            }
+            else {
+                mNotificationManager.getTransportControls().play();
+            }
         }
 
         return START_STICKY;
@@ -188,12 +196,23 @@ public class MediaPlayerService extends Service implements Playback.Callback {
 
         PlaybackStateCompat.Builder stateBuilder = new PlaybackStateCompat.Builder()
                 .setActions(PlaybackStateCompat.ACTION_PLAY | PlaybackStateCompat.ACTION_PLAY_PAUSE
-                        | PlaybackStateCompat.ACTION_PAUSE
-                 | PlaybackStateCompat.ACTION_STOP);
+                        | PlaybackStateCompat.ACTION_PAUSE | PlaybackStateCompat.ACTION_STOP);
 
         stateBuilder.setState(state, mPlayback.getCurrentStreamPosition(), 0, SystemClock.elapsedRealtime());
 
         mMediaSession.setPlaybackState(stateBuilder.build());
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            if (mMediaSession.getRemoteControlClient() != null && mMediaSession.getRemoteControlClient() instanceof RemoteControlClient) {
+                RemoteControlClient remoteControlClient = (RemoteControlClient) mMediaSession.getRemoteControlClient();
+
+                int flags = RemoteControlClient.FLAG_KEY_MEDIA_PLAY
+                        | RemoteControlClient.FLAG_KEY_MEDIA_PAUSE
+                        | RemoteControlClient.FLAG_KEY_MEDIA_PLAY_PAUSE;
+
+                remoteControlClient.setTransportControlFlags(flags);
+            }
+        }
 
         if (state == PlaybackStateCompat.STATE_PLAYING || state == PlaybackStateCompat.STATE_PAUSED) {
             mNotificationManager.startNotification();
@@ -268,7 +287,13 @@ public class MediaPlayerService extends Service implements Playback.Callback {
 
             switch (event.getKeyCode()) {
                 case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-                    mPlayback.play(currentTrack);
+
+                    if (mPlayback.isPlaying()) {
+                        mPlayback.pause();
+                    }
+                    else {
+                        mPlayback.play(currentTrack);
+                    }
                     return true;
                 case KeyEvent.KEYCODE_MEDIA_PLAY:
                     mPlayback.play(currentTrack);

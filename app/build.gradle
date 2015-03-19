@@ -6,7 +6,7 @@ android {
 
     defaultConfig {
         applicationId "br.com.pontomobi.mediasession"
-        minSdkVersion 14
+        minSdkVersion 10
         targetSdkVersion 22
         versionCode 1
         versionName "1.0"

@@ -30,6 +30,13 @@
             android:exported="true" >
         </service>
 
+
+        <receiver android:name="br.com.pontomobi.mediasession.MediaButtonReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON"/>
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

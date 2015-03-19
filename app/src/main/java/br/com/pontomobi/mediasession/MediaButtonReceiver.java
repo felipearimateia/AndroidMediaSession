@@ -18,28 +18,25 @@ public class MediaButtonReceiver extends BroadcastReceiver{
             try {
                 // Find out if the event was a button press
                 KeyEvent event = (KeyEvent) intent.getExtras().get(Intent.EXTRA_KEY_EVENT);
-                if (KeyEvent.ACTION_DOWN == event.getAction()) {
-                    // Send appropriate action to the episode playback service by constructing
-                    // the intent and make sure it is explicit (required for API >= 21)
-                    final Intent actionIntent = new Intent(context, MediaPlayerService.class);
+                if (KeyEvent.ACTION_UP == event.getAction()) {
 
                     switch (event.getKeyCode()) {
                         case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-//                            actionIntent.setAction(PlayerService.ACTION_PAUSE);
+                            sendCommand(context, Constants.ACTION_PLAY_PAUSE);
                             break;
                         case KeyEvent.KEYCODE_MEDIA_PLAY:
-//                            actionIntent.setAction(PlayerService.ACTION_PLAY);
+                            sendCommand(context, Constants.ACTION_PLAY);
                             break;
                         case KeyEvent.KEYCODE_HEADSETHOOK:
                         case KeyEvent.KEYCODE_MEDIA_PAUSE:
-//                            actionIntent.setAction(PlayerService.ACTION_PAUSE);
+                            sendCommand(context, Constants.ACTION_PAUSE);
                             break;
 //                        case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
 //                            actionIntent.setAction(PlayerService.ACTION_PREVIOUS);
 //                            break;
-                        case KeyEvent.KEYCODE_MEDIA_NEXT:
+//                        case KeyEvent.KEYCODE_MEDIA_NEXT:
 //                            actionIntent.setAction(PlayerService.ACTION_SKIP);
-                            break;
+//                            break;
 //                        case KeyEvent.KEYCODE_MEDIA_REWIND:
 //                            actionIntent.setAction(ACTION_REWIND);
 //                            break;
@@ -48,11 +45,9 @@ public class MediaButtonReceiver extends BroadcastReceiver{
 //                            break;
                         case KeyEvent.KEYCODE_MEDIA_STOP:
                         case KeyEvent.KEYCODE_MEDIA_EJECT:
-//                            actionIntent.setAction(PlayerService.ACTION_STOP);
+                            sendCommand(context, Constants.ACTION_STOP);
                             break;
                     }
-                    // Go send command to service
-                    context.startService(actionIntent);
                 }
             } catch (SecurityException se) {
                 // This might happen if called from the outside since our
@@ -60,5 +55,15 @@ public class MediaButtonReceiver extends BroadcastReceiver{
                 Log.d("MediaButtonReceiver", se.getMessage(), se);
             }
         }
+    }
+
+    private void sendCommand(Context context, String action) {
+        String pkg = context.getPackageName();
+
+        final Intent actionIntent = new Intent(context, MediaPlayerService.class);
+//        actionIntent.setPackage(pkg);
+        actionIntent.setAction(action);
+
+        context.startService(actionIntent);
     }
 }
