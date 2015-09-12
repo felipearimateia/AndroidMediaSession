@@ -5,6 +5,7 @@ import android.media.MediaMetadata;
 import android.support.v4.media.MediaMetadataCompat;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -13,14 +14,14 @@ import butterknife.ButterKnife;
 import butterknife.OnClick;
 
 
-public class MainActivity extends ActionBarActivity {
+public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        ButterKnife.inject(this);
+        ButterKnife.bind(this);
 
 //        Intent intent = new Intent(this, MediaPlayerService.class);
 //        startService(intent);
@@ -54,6 +55,8 @@ public class MainActivity extends ActionBarActivity {
 
         Intent intent = new Intent(this, MediaPlayerService.class);
         intent.setAction(Constants.ACTION_PLAY);
+        intent.putExtra(Constants.CUSTOM_METADATA_TRACK_SOURCE,
+                "http://jovemnerd.com.br/podpress_trac/feed/108752/0/nerdcast_456_diabo.mp3 ");
         intent.putExtra(Constants.PLAY_MEDIA_METADATA, createMetadata());
 
         startService(intent);
@@ -81,7 +84,6 @@ public class MainActivity extends ActionBarActivity {
 
         return new MediaMetadataCompat.Builder()
                 .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, "55043d8a3e499b9da36b3274")
-                .putString(Constants.CUSTOM_METADATA_TRACK_SOURCE, "http://jovemnerd.com.br/podpress_trac/feed/108752/0/nerdcast_456_diabo.mp3 ")
                 .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Nerdcast")
                 .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Nerdcast")
                 .putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, "http://jumphawk.jovemnerd.com.br/wp-content/uploads/destaque_DIABO_01-e1426210345352.jpg")

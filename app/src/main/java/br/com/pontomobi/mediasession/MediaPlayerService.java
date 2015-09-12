@@ -41,6 +41,7 @@ public class MediaPlayerService extends Service implements Playback.Callback {
     private Playback mPlayback;
 
     private MediaMetadataCompat currentTrack;
+    private String currentTrackSource;
 
     public MediaPlayerService() {
     }
@@ -87,6 +88,7 @@ public class MediaPlayerService extends Service implements Playback.Callback {
 
         if( action.equalsIgnoreCase( Constants.ACTION_PLAY ) ) {
             currentTrack = intent.getParcelableExtra(Constants.PLAY_MEDIA_METADATA);
+            currentTrackSource = intent.getStringExtra(Constants.CUSTOM_METADATA_TRACK_SOURCE);
             mNotificationManager.getTransportControls().play();
         } else if( action.equalsIgnoreCase( Constants.ACTION_PAUSE ) ) {
             mNotificationManager.getTransportControls().pause();
@@ -163,7 +165,7 @@ public class MediaPlayerService extends Service implements Playback.Callback {
                 mMediaSession.setActive(true);
 
 
-            mPlayback.play(currentTrack);
+            mPlayback.play(currentTrack, currentTrackSource);
         }
 
         @Override
@@ -246,12 +248,12 @@ public class MediaPlayerService extends Service implements Playback.Callback {
 
                             // set high resolution bitmap in METADATA_KEY_ALBUM_ART. This is used, for
                             // example, on the lockscreen background when the media session is active.
-                            .putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, bitmap)
+                            .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, bitmap)
 
                                     // set small version of the album art in the DISPLAY_ICON. This is used on
                                     // the MediaDescription and thus it should be small to be serialized if
                                     // necessary..
-                            .putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, bitmap)
+                            .putBitmap(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON, bitmap)
 
                             .build();
 
@@ -292,11 +294,11 @@ public class MediaPlayerService extends Service implements Playback.Callback {
                         mPlayback.pause();
                     }
                     else {
-                        mPlayback.play(currentTrack);
+                        mPlayback.play(currentTrack, currentTrackSource);
                     }
                     return true;
                 case KeyEvent.KEYCODE_MEDIA_PLAY:
-                    mPlayback.play(currentTrack);
+                    mPlayback.play(currentTrack, currentTrackSource);
                     return true;
                 case KeyEvent.KEYCODE_MEDIA_PAUSE:
                     mPlayback.pause();

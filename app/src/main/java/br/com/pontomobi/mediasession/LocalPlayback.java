@@ -141,7 +141,7 @@ public class LocalPlayback implements Playback, AudioManager.OnAudioFocusChangeL
     }
 
     @Override
-    public void play(MediaMetadataCompat track) {
+    public void play(MediaMetadataCompat track, String source) {
 
         mPlayOnFocusGain = true;
 
@@ -162,8 +162,6 @@ public class LocalPlayback implements Playback, AudioManager.OnAudioFocusChangeL
         } else {
             mState = PlaybackState.STATE_STOPPED;
             relaxResources(false); // release everything except MediaPlayer
-
-            String source = track.getString(Constants.CUSTOM_METADATA_TRACK_SOURCE).trim();
 
             try {
                 createMediaPlayerIfNeeded();

@@ -75,7 +75,7 @@ public interface Playback {
     /**
      * @param item to play
      */
-    void play(MediaMetadataCompat item);
+    void play(MediaMetadataCompat item, String source);
 
     /**
      * Pause the current playing item

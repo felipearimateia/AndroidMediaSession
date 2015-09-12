@@ -256,13 +256,8 @@ public class MediaNotificationManager extends BroadcastReceiver {
             icon = R.drawable.ic_play_arrow_white_24dp;
             intent = mPlayIntent;
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            builder.addAction(new Notification.Action(icon, label, intent));
-        }
-        else {
-            builder.addAction(new NotificationCompat.Action(icon, label, intent));
-        }
 
+        builder.addAction(new NotificationCompat.Action(icon, label, intent));
     }
 
     private void addStopAction(NotificationBuilder builder) {
@@ -271,14 +266,7 @@ public class MediaNotificationManager extends BroadcastReceiver {
         String label = mService.getString(R.string.label_stop);
         int icon = R.drawable.ic_close_black_24dp;
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            builder.addAction(new Notification.Action(icon, label, mStopIntent));
-        }
-        else {
-            builder.addAction(new NotificationCompat.Action(icon, label, mStopIntent));
-        }
-
-
+        builder.addAction(new NotificationCompat.Action(icon, label, mStopIntent));
     }
 
     private PendingIntent createContentIntent(MediaDescriptionCompat description) {
