@@ -5,7 +5,7 @@ android {
     buildToolsVersion "23.0.0"
 
     defaultConfig {
-        applicationId "br.com.pontomobi.mediasession"
+        applicationId "br.com.gmobile.mediasession"
         minSdkVersion 15
         targetSdkVersion 23
         versionCode 1

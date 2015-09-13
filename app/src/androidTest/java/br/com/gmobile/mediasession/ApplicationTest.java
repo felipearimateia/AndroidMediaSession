@@ -1,4 +1,4 @@
-package br.com.pontomobi.mediasession;
+package br.com.gmobile.mediasession;
 
 import android.app.Application;
 import android.test.ApplicationTestCase;

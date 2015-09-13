@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="br.com.pontomobi.mediasession" >
+    package="br.com.gmobile.mediasession" >
 
 
     <uses-permission android:name="android.permission.INTERNET"/>
@@ -15,7 +15,7 @@
         android:label="@string/app_name"
         android:theme="@style/AppTheme" >
         <activity
-            android:name=".MainActivity"
+            android:name="br.com.gmobile.mediasession.MainActivity"
             android:label="@string/app_name" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -25,13 +25,13 @@
         </activity>
 
         <service
-            android:name=".MediaPlayerService"
+            android:name="br.com.gmobile.mediasession.MediaPlayerService"
             android:enabled="true"
             android:exported="true" >
         </service>
 
 
-        <receiver android:name="br.com.pontomobi.mediasession.MediaButtonReceiver">
+        <receiver android:name="br.com.gmobile.mediasession.MediaButtonReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_BUTTON"/>
             </intent-filter>
