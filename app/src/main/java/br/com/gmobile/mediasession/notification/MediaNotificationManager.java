@@ -256,7 +256,7 @@ public class MediaNotificationManager extends BroadcastReceiver {
         LogHelper.d(TAG, "addStopAction");
 
         String label = mService.getString(R.string.label_stop);
-        int icon = android.R.drawable.ic_media_pause;
+        int icon = R.drawable.ic_close_black_24dp;
 
         builder.addAction(new NotificationCompat.Action.Builder(icon, label, mStopIntent).build());
     }
