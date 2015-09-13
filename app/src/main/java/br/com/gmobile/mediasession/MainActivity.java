@@ -84,7 +84,7 @@ public class MainActivity extends AppCompatActivity {
                 .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, "55043d8a3e499b9da36b3274")
                 .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Nerdcast")
                 .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Nerdcast")
-                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, "http://jumphawk.jovemnerd.com.br/wp-content/uploads/destaque_DIABO_01-e1426210345352.jpg")
+                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, "http://jovemnerd.com.br/wp-content/themes/jovemnerd_v2b/images/NC_FEED.jpg")
                 .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Nerdcast 482 – As dimensões de Interestelar")
                 .build();
     }
