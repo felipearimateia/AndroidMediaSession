@@ -21,6 +21,9 @@ import android.view.KeyEvent;
 import com.squareup.picasso.Picasso;
 import com.squareup.picasso.Target;
 
+import br.com.gmobile.mediasession.events.BusProvider;
+import br.com.gmobile.mediasession.events.MetadataEvent;
+import br.com.gmobile.mediasession.events.PlaybackStateEvent;
 import br.com.gmobile.mediasession.helpers.LogHelper;
 import br.com.gmobile.mediasession.notification.MediaNotificationManager;
 
@@ -212,6 +215,8 @@ public class MediaPlayerService extends Service implements Playback.Callback {
         if (state == PlaybackStateCompat.STATE_PLAYING || state == PlaybackStateCompat.STATE_PAUSED) {
             mNotificationManager.startNotification();
         }
+
+        BusProvider.getInstance().post(new PlaybackStateEvent(state));
     }
 
     public MediaSessionCompat.Token getSessionToken() {
@@ -225,6 +230,7 @@ public class MediaPlayerService extends Service implements Playback.Callback {
     private void updateMetadata() {
 
         mMediaSession.setMetadata(currentTrack);
+        BusProvider.getInstance().post(new MetadataEvent(currentTrack));
 
         // Set the proper album artwork on the media session, so it can be shown in the
         // locked screen and in other places.
