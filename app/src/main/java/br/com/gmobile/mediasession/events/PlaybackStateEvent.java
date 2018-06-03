@@ -1,7 +1,7 @@
 package br.com.gmobile.mediasession.events;
 
 /**
- * Created by cit on 06/10/15.
+ * Created by felipearimateia on 06/10/15.
  */
 public class PlaybackStateEvent {
 

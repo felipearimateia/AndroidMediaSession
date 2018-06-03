@@ -16,4 +16,5 @@ public class Constants {
     public static final String EXTRA_CURRENT_MEDIA_DESCRIPTION = "CURRENT_MEDIA_DESCRIPTION";
     public static final String CUSTOM_METADATA_TRACK_SOURCE = "__SOURCE__";
     public static final String PLAY_MEDIA_METADATA = "PLAY_MEDIA_METADATA";
+    public static final String CHANNEL_ID = "MUSIC_CHANNEL_ID";
 }

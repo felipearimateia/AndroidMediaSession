@@ -54,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(this, MediaPlayerService.class);
         intent.setAction(Constants.ACTION_PLAY);
         intent.putExtra(Constants.CUSTOM_METADATA_TRACK_SOURCE,
-                "http://nerdcast.jovemnerd.com.br/nerdcast_482_interestelar.mp3");
+                "https://nerdcast-cdn.jovemnerd.com.br/nerdcast_530_esquadrao_suicida.mp3");
         intent.putExtra(Constants.PLAY_MEDIA_METADATA, createMetadata());
 
         startService(intent);
@@ -84,8 +84,8 @@ public class MainActivity extends AppCompatActivity {
                 .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, "55043d8a3e499b9da36b3274")
                 .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Nerdcast")
                 .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Nerdcast")
-                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, "http://jovemnerd.com.br/wp-content/themes/jovemnerd_v2b/images/NC_FEED.jpg")
-                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Nerdcast 482 – As dimensões de Interestelar")
+                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, "https://jovemnerd.com.br/wp-content/uploads/2016/08/NOVO_GIGA_SUICIDA_02.jpg")
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Nerdcast 530 – Esquadrão Suicida, ou não…")
                 .build();
     }
 }

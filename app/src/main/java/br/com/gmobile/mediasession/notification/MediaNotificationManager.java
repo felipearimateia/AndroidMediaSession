@@ -1,6 +1,7 @@
 package br.com.gmobile.mediasession.notification;
 
 import android.app.Notification;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
@@ -12,7 +13,9 @@ import android.graphics.BitmapFactory;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.RequiresApi;
 import android.support.v4.app.NotificationCompat;
+import android.support.v4.media.app.NotificationCompat.MediaStyle;
 import android.support.v4.media.MediaDescriptionCompat;
 import android.support.v4.media.MediaMetadataCompat;
 import android.support.v4.media.session.MediaControllerCompat;
@@ -181,7 +184,9 @@ public class MediaNotificationManager extends BroadcastReceiver {
             return null;
         }
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context,
+                NotificationChannel.DEFAULT_CHANNEL_ID);
 
 
         addPlayPauseAction(builder);
@@ -206,7 +211,7 @@ public class MediaNotificationManager extends BroadcastReceiver {
                 .setContentText(description.getSubtitle())
                 .setLargeIcon(art);
 
-        builder.setStyle(new android.support.v7.app.NotificationCompat.MediaStyle()
+        builder.setStyle(new MediaStyle()
                 .setShowActionsInCompactView(new int[]{0})  // show only play/pause in compact view
                 .setMediaSession(MediaSessionCompat.Token.fromToken(mSessionToken.getToken())));
 
@@ -214,6 +219,11 @@ public class MediaNotificationManager extends BroadcastReceiver {
 
         if (fetchArtUrl != null) {
             fetchBitmapFromURLAsync(fetchArtUrl, builder);
+        }
+
+        // Notification channels are only supported on Android O+.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            createNotificationChannel();
         }
 
         Notification notification = builder.build();
@@ -301,6 +311,25 @@ public class MediaNotificationManager extends BroadcastReceiver {
     public MediaControllerCompat.TransportControls getTransportControls() {
         return mTransportControls;
     }
+
+    /**
+     * Creates Notification Channel. This is required in Android O+ to display notifications.
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    private void createNotificationChannel() {
+        if (mNotificationManager.getNotificationChannel(Constants.CHANNEL_ID) == null) {
+            NotificationChannel notificationChannel =
+                    new NotificationChannel(Constants.CHANNEL_ID,
+                            mService.getString(R.string.notification_channel),
+                            NotificationManager.IMPORTANCE_LOW);
+
+            notificationChannel.setDescription(
+                    mService.getString(R.string.notification_channel_description));
+
+            mNotificationManager.createNotificationChannel(notificationChannel);
+        }
+    }
+
 }
 
 
