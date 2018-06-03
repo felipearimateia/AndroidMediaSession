@@ -184,9 +184,13 @@ public class MediaNotificationManager extends BroadcastReceiver {
             return null;
         }
 
+        // Notification channels are only supported on Android O+.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            createNotificationChannel();
+        }
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context,
-                NotificationChannel.DEFAULT_CHANNEL_ID);
+                Constants.CHANNEL_ID);
 
 
         addPlayPauseAction(builder);
@@ -221,10 +225,6 @@ public class MediaNotificationManager extends BroadcastReceiver {
             fetchBitmapFromURLAsync(fetchArtUrl, builder);
         }
 
-        // Notification channels are only supported on Android O+.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            createNotificationChannel();
-        }
 
         Notification notification = builder.build();
 
