@@ -62,15 +62,7 @@ public interface Playback {
     /**
      * @return pos if currently playing an item
      */
-    int getCurrentStreamPosition();
-
-    /**
-     * Set the current position. Typically used when switching players that are in
-     * paused state.
-     *
-     * @param pos position in the stream
-     */
-    void setCurrentStreamPosition(int pos);
+    long getCurrentStreamPosition();
 
     /**
      * @param item to play
@@ -85,7 +77,7 @@ public interface Playback {
     /**
      * Seek to the given position
      */
-    void seekTo(int position);
+    void seekTo(long position);
 
     /**
      * Set the current mediaId. This is only used when switching from one

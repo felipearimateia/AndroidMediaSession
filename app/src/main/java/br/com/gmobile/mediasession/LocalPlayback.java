@@ -5,22 +5,42 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.media.AudioManager;
-import android.media.MediaPlayer;
-import android.media.session.PlaybackState;
+import android.net.Uri;
 import android.net.wifi.WifiManager;
-import android.os.PowerManager;
 import android.support.v4.media.MediaMetadataCompat;
+import android.support.v4.media.session.PlaybackStateCompat;
 import android.text.TextUtils;
 
-import java.io.IOException;
+import com.google.android.exoplayer2.DefaultLoadControl;
+import com.google.android.exoplayer2.DefaultRenderersFactory;
+import com.google.android.exoplayer2.ExoPlaybackException;
+import com.google.android.exoplayer2.ExoPlayerFactory;
+import com.google.android.exoplayer2.PlaybackParameters;
+import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.Timeline;
+import com.google.android.exoplayer2.audio.AudioAttributes;
+import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
+import com.google.android.exoplayer2.extractor.ExtractorsFactory;
+import com.google.android.exoplayer2.source.ExtractorMediaSource;
+import com.google.android.exoplayer2.source.MediaSource;
+import com.google.android.exoplayer2.source.TrackGroupArray;
+import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
+import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
+import com.google.android.exoplayer2.upstream.DataSource;
+import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
+import com.google.android.exoplayer2.util.Util;
 
 import br.com.gmobile.mediasession.helpers.LogHelper;
 
-/**
- * Created by felipe.arimateia on 3/18/15.
- */
-public class LocalPlayback implements Playback, AudioManager.OnAudioFocusChangeListener, MediaPlayer.OnPreparedListener, MediaPlayer.OnCompletionListener, MediaPlayer.OnErrorListener, MediaPlayer.OnSeekCompleteListener {
+import static com.google.android.exoplayer2.C.CONTENT_TYPE_MUSIC;
+import static com.google.android.exoplayer2.C.USAGE_MEDIA;
 
+/**
+ * A class that implements local media playback using {@link
+ * com.google.android.exoplayer2.ExoPlayer}
+ */
+public final class LocalPlayback implements Playback {
 
     private static final String TAG = LogHelper.makeLogTag(LocalPlayback.class);
 
@@ -35,207 +55,195 @@ public class LocalPlayback implements Playback, AudioManager.OnAudioFocusChangeL
     // we don't have focus, but can duck (play at a low volume)
     private static final int AUDIO_NO_FOCUS_CAN_DUCK = 1;
     // we have full audio focus
-    private static final int AUDIO_FOCUSED  = 2;
+    private static final int AUDIO_FOCUSED = 2;
 
-
-    private final AudioManager mAudioManager;
+    private final Context mContext;
     private final WifiManager.WifiLock mWifiLock;
-    private MediaPlayerService mService;
-
-    // Type of audio focus we have:
-    private int mAudioFocus = AUDIO_NO_FOCUS_NO_DUCK;
-    private MediaPlayer mMediaPlayer;
-
+    private boolean mPlayOnFocusGain;
     private Callback mCallback;
 
-    private boolean mPlayOnFocusGain;
+    private boolean mAudioNoisyReceiverRegistered;
+    private String mCurrentMediaId;
 
-    private volatile int mCurrentPosition;
-    private volatile String mCurrentMediaId;
+    private int mCurrentAudioFocusState = AUDIO_NO_FOCUS_NO_DUCK;
+    private final AudioManager mAudioManager;
+    private SimpleExoPlayer mExoPlayer;
+    private final ExoPlayerEventListener mEventListener = new ExoPlayerEventListener();
 
-    private int mState;
+    // Whether to return STATE_NONE or STATE_STOPPED when mExoPlayer is null;
+    private boolean mExoPlayerNullIsStopped =  false;
 
-    private volatile boolean mAudioNoisyReceiverRegistered;
-
-    private IntentFilter mAudioNoisyIntentFilter =
+    private final IntentFilter mAudioNoisyIntentFilter =
             new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY);
 
-    private BroadcastReceiver mAudioNoisyReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            if (AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(intent.getAction())) {
-                LogHelper.d(TAG, "Headphones disconnected.");
-                if (isPlaying()) {
-                    Intent i = new Intent(context, MediaPlayerService.class);
-                    i.setAction(Constants.ACTION_PAUSE);
-                    mService.startService(i);
+    private final BroadcastReceiver mAudioNoisyReceiver =
+            new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    if (AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(intent.getAction())) {
+                        LogHelper.d(TAG, "Headphones disconnected.");
+                        if (isPlaying()) {
+                            Intent i = new Intent(context, MediaPlayerService.class);
+                            i.setAction(Constants.ACTION_PAUSE);
+                            mContext.startService(i);
+                        }
+                    }
                 }
-            }
-        }
-    };
+            };
 
-    public LocalPlayback(MediaPlayerService service) {
-        this.mService = service;
+    public LocalPlayback(Context context) {
+        Context applicationContext = context.getApplicationContext();
+        this.mContext = applicationContext;
 
-        this.mAudioManager = (AudioManager) mService.getSystemService(Context.AUDIO_SERVICE);
-
+        this.mAudioManager =
+                (AudioManager) applicationContext.getSystemService(Context.AUDIO_SERVICE);
         // Create the Wifi lock (this does not acquire the lock, this just creates it)
-        this.mWifiLock = ((WifiManager) mService.getSystemService(Context.WIFI_SERVICE))
-                .createWifiLock(WifiManager.WIFI_MODE_FULL, "uAmp_lock");
+        this.mWifiLock =
+                ((WifiManager) applicationContext.getSystemService(Context.WIFI_SERVICE))
+                        .createWifiLock(WifiManager.WIFI_MODE_FULL, "uAmp_lock");
     }
 
     @Override
     public void start() {
-
+        // Nothing to do
     }
 
     @Override
     public void stop(boolean notifyListeners) {
-        mState = PlaybackState.STATE_STOPPED;
-
-        if (notifyListeners && mCallback != null) {
-            mCallback.onPlaybackStatusChanged(mState);
-        }
-
-        mCurrentPosition = 0;
-
-        // Give up Audio focus
         giveUpAudioFocus();
         unregisterAudioNoisyReceiver();
-        // Relax all resources
-        relaxResources(true);
-        if (mWifiLock.isHeld()) {
-            mWifiLock.release();
-        }
+        releaseResources(true);
     }
 
     @Override
     public void setState(int state) {
-        this.mState = state;
+        // Nothing to do (mExoPlayer holds its own state).
     }
 
     @Override
     public int getState() {
-        return mState;
+        if (mExoPlayer == null) {
+            return mExoPlayerNullIsStopped
+                    ? PlaybackStateCompat.STATE_STOPPED
+                    : PlaybackStateCompat.STATE_NONE;
+        }
+        switch (mExoPlayer.getPlaybackState()) {
+            case Player.STATE_IDLE:
+                return PlaybackStateCompat.STATE_PAUSED;
+            case Player.STATE_BUFFERING:
+                return PlaybackStateCompat.STATE_BUFFERING;
+            case Player.STATE_READY:
+                return mExoPlayer.getPlayWhenReady()
+                        ? PlaybackStateCompat.STATE_PLAYING
+                        : PlaybackStateCompat.STATE_PAUSED;
+            case Player.STATE_ENDED:
+                return PlaybackStateCompat.STATE_PAUSED;
+            default:
+                return PlaybackStateCompat.STATE_NONE;
+        }
     }
 
     @Override
     public boolean isConnected() {
-        return  true;
+        return true;
     }
 
     @Override
     public boolean isPlaying() {
-        return mPlayOnFocusGain || (mMediaPlayer != null && mMediaPlayer.isPlaying());
+        return mPlayOnFocusGain || (mExoPlayer != null && mExoPlayer.getPlayWhenReady());
     }
 
     @Override
-    public int getCurrentStreamPosition() {
-        return  mMediaPlayer != null ?
-                mMediaPlayer.getCurrentPosition() : mCurrentPosition;
-    }
-
-    @Override
-    public void setCurrentStreamPosition(int pos) {
-        this.mCurrentPosition = pos;
+    public long getCurrentStreamPosition() {
+        return mExoPlayer != null ? mExoPlayer.getCurrentPosition() : 0;
     }
 
     @Override
     public void play(MediaMetadataCompat track, String source) {
-
         mPlayOnFocusGain = true;
-
         tryToGetAudioFocus();
         registerAudioNoisyReceiver();
-
         String mediaId = track.getDescription().getMediaId();
-
         boolean mediaHasChanged = !TextUtils.equals(mediaId, mCurrentMediaId);
-
         if (mediaHasChanged) {
-            mCurrentPosition = 0;
             mCurrentMediaId = mediaId;
         }
 
-        if (mState == PlaybackState.STATE_PAUSED && !mediaHasChanged && mMediaPlayer != null) {
-            configMediaPlayerState();
-        } else {
-            mState = PlaybackState.STATE_STOPPED;
-            relaxResources(false); // release everything except MediaPlayer
+        if (mediaHasChanged || mExoPlayer == null) {
+            releaseResources(false); // release everything except the player
 
-            try {
-                createMediaPlayerIfNeeded();
-
-                mState = PlaybackState.STATE_BUFFERING;
-
-                mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-                mMediaPlayer.setDataSource(source);
-
-                // Starts preparing the media player in the background. When
-                // it's done, it will call our OnPreparedListener (that is,
-                // the onPrepared() method on this class, since we set the
-                // listener to 'this'). Until the media player is prepared,
-                // we *cannot* call start() on it!
-                mMediaPlayer.prepareAsync();
-
-                // If we are streaming from the internet, we want to hold a
-                // Wifi lock, which prevents the Wifi radio from going to
-                // sleep while the song is playing.
-                mWifiLock.acquire();
-
-                if (mCallback != null) {
-                    mCallback.onPlaybackStatusChanged(mState);
-                }
-
-            } catch (IOException ex) {
-                LogHelper.e(TAG, ex, "Exception playing song");
-                if (mCallback != null) {
-                    mCallback.onError(ex.getMessage());
-                }
+            if (source != null) {
+                source = source.replaceAll(" ", "%20"); // Escape spaces for URLs
             }
+
+            if (mExoPlayer == null) {
+                mExoPlayer = ExoPlayerFactory.newSimpleInstance(
+                        new DefaultRenderersFactory(mContext),
+                        new DefaultTrackSelector(),
+                        new DefaultLoadControl());
+                mExoPlayer.addListener(mEventListener);
+            }
+
+            // Android "O" makes much greater use of AudioAttributes, especially
+            // with regards to AudioFocus. All of UAMP's tracks are music, but
+            // if your content includes spoken word such as audiobooks or podcasts
+            // then the content type should be set to CONTENT_TYPE_SPEECH for those
+            // tracks.
+            final AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                    .setContentType(CONTENT_TYPE_MUSIC)
+                    .setUsage(USAGE_MEDIA)
+                    .build();
+            mExoPlayer.setAudioAttributes(audioAttributes);
+
+            // Produces DataSource instances through which media data is loaded.
+            DataSource.Factory dataSourceFactory =
+                    new DefaultDataSourceFactory(
+                            mContext, Util.getUserAgent(mContext, "uamp"), null);
+            // Produces Extractor instances for parsing the media data.
+            ExtractorsFactory extractorsFactory = new DefaultExtractorsFactory();
+            // The MediaSource represents the media to be played.
+            ExtractorMediaSource.Factory extractorMediaFactory =
+                    new ExtractorMediaSource.Factory(dataSourceFactory);
+            extractorMediaFactory.setExtractorsFactory(extractorsFactory);
+            MediaSource mediaSource =
+                    extractorMediaFactory.createMediaSource(Uri.parse(source));
+
+            // Prepares media to play (happens on background thread) and triggers
+            // {@code onPlayerStateChanged} callback when the stream is ready to play.
+            mExoPlayer.prepare(mediaSource);
+
+            // If we are streaming from the internet, we want to hold a
+            // Wifi lock, which prevents the Wifi radio from going to
+            // sleep while the song is playing.
+            mWifiLock.acquire();
         }
 
+        configurePlayerState();
     }
 
     @Override
     public void pause() {
-
-        if (mState == PlaybackState.STATE_PLAYING) {
-            // Pause media player and cancel the 'foreground service' state.
-            if (mMediaPlayer != null && mMediaPlayer.isPlaying()) {
-                mMediaPlayer.pause();
-                mCurrentPosition = mMediaPlayer.getCurrentPosition();
-            }
-            // while paused, retain the MediaPlayer but give up audio focus
-            relaxResources(false);
-            giveUpAudioFocus();
+        // Pause player and cancel the 'foreground service' state.
+        if (mExoPlayer != null) {
+            mExoPlayer.setPlayWhenReady(false);
         }
-
-        mState = PlaybackState.STATE_PAUSED;
-        if (mCallback != null) {
-            mCallback.onPlaybackStatusChanged(mState);
-        }
-
+        // While paused, retain the player instance, but give up audio focus.
+        releaseResources(false);
         unregisterAudioNoisyReceiver();
     }
 
     @Override
-    public void seekTo(int position) {
-
+    public void seekTo(long position) {
         LogHelper.d(TAG, "seekTo called with ", position);
-
-        if (mMediaPlayer == null) {
-            // If we do not have a current media player, simply update the current position
-            mCurrentPosition = position;
-        } else {
-            if (mMediaPlayer.isPlaying()) {
-                mState = PlaybackState.STATE_BUFFERING;
-            }
-            mMediaPlayer.seekTo(position);
-            if (mCallback != null) {
-                mCallback.onPlaybackStatusChanged(mState);
-            }
+        if (mExoPlayer != null) {
+            registerAudioNoisyReceiver();
+            mExoPlayer.seekTo(position);
         }
+    }
+
+    @Override
+    public void setCallback(Callback callback) {
+        this.mCallback = callback;
     }
 
     @Override
@@ -248,216 +256,209 @@ public class LocalPlayback implements Playback, AudioManager.OnAudioFocusChangeL
         return mCurrentMediaId;
     }
 
-    @Override
-    public void setCallback(Callback callback) {
-        this.mCallback = callback;
-    }
-
-    /**
-     * Makes sure the media player exists and has been reset. This will create
-     * the media player if needed, or reset the existing media player if one
-     * already exists.
-     */
-    private void createMediaPlayerIfNeeded() {
-        LogHelper.d(TAG, "createMediaPlayerIfNeeded. needed? ", (mMediaPlayer==null));
-        if (mMediaPlayer == null) {
-            mMediaPlayer = new MediaPlayer();
-
-            // Make sure the media player will acquire a wake-lock while
-            // playing. If we don't do that, the CPU might go to sleep while the
-            // song is playing, causing playback to stop.
-            mMediaPlayer.setWakeMode(mService.getApplicationContext(),
-                    PowerManager.PARTIAL_WAKE_LOCK);
-
-            // we want the media player to notify us when it's ready preparing,
-            // and when it's done playing:
-            mMediaPlayer.setOnPreparedListener(this);
-            mMediaPlayer.setOnCompletionListener(this);
-            mMediaPlayer.setOnErrorListener(this);
-            mMediaPlayer.setOnSeekCompleteListener(this);
+    private void tryToGetAudioFocus() {
+        LogHelper.d(TAG, "tryToGetAudioFocus");
+        int result =
+                mAudioManager.requestAudioFocus(
+                        mOnAudioFocusChangeListener,
+                        AudioManager.STREAM_MUSIC,
+                        AudioManager.AUDIOFOCUS_GAIN);
+        if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            mCurrentAudioFocusState = AUDIO_FOCUSED;
         } else {
-            mMediaPlayer.reset();
+            mCurrentAudioFocusState = AUDIO_NO_FOCUS_NO_DUCK;
+        }
+    }
+
+    private void giveUpAudioFocus() {
+        LogHelper.d(TAG, "giveUpAudioFocus");
+        if (mAudioManager.abandonAudioFocus(mOnAudioFocusChangeListener)
+                == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            mCurrentAudioFocusState = AUDIO_NO_FOCUS_NO_DUCK;
         }
     }
 
     /**
-     * Releases resources used by the service for playback. This includes the
-     * "foreground service" status, the wake locks and possibly the MediaPlayer.
-     *
-     * @param releaseMediaPlayer Indicates whether the Media Player should also
-     *            be released or not
+     * Reconfigures the player according to audio focus settings and starts/restarts it. This method
+     * starts/restarts the ExoPlayer instance respecting the current audio focus state. So if we
+     * have focus, it will play normally; if we don't have focus, it will either leave the player
+     * paused or set it to a low volume, depending on what is permitted by the current focus
+     * settings.
      */
-    private void relaxResources(boolean releaseMediaPlayer) {
-        LogHelper.d(TAG, "relaxResources. releaseMediaPlayer=", releaseMediaPlayer);
+    private void configurePlayerState() {
+        LogHelper.d(TAG, "configurePlayerState. mCurrentAudioFocusState=", mCurrentAudioFocusState);
+        if (mCurrentAudioFocusState == AUDIO_NO_FOCUS_NO_DUCK) {
+            // We don't have audio focus and can't duck, so we have to pause
+            pause();
+        } else {
+            registerAudioNoisyReceiver();
 
-        mService.stopForeground(true);
+            if (mCurrentAudioFocusState == AUDIO_NO_FOCUS_CAN_DUCK) {
+                // We're permitted to play, but only if we 'duck', ie: play softly
+                mExoPlayer.setVolume(VOLUME_DUCK);
+            } else {
+                mExoPlayer.setVolume(VOLUME_NORMAL);
+            }
 
-        // stop and release the Media Player, if it's available
-        if (releaseMediaPlayer && mMediaPlayer != null) {
-            mMediaPlayer.reset();
-            mMediaPlayer.release();
-            mMediaPlayer = null;
+            // If we were playing when we lost focus, we need to resume playing.
+            if (mPlayOnFocusGain) {
+                mExoPlayer.setPlayWhenReady(true);
+                mPlayOnFocusGain = false;
+            }
+        }
+    }
+
+    private final AudioManager.OnAudioFocusChangeListener mOnAudioFocusChangeListener =
+            new AudioManager.OnAudioFocusChangeListener() {
+                @Override
+                public void onAudioFocusChange(int focusChange) {
+                    LogHelper.d(TAG, "onAudioFocusChange. focusChange=", focusChange);
+                    switch (focusChange) {
+                        case AudioManager.AUDIOFOCUS_GAIN:
+                            mCurrentAudioFocusState = AUDIO_FOCUSED;
+                            break;
+                        case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+                            // Audio focus was lost, but it's possible to duck (i.e.: play quietly)
+                            mCurrentAudioFocusState = AUDIO_NO_FOCUS_CAN_DUCK;
+                            break;
+                        case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
+                            // Lost audio focus, but will gain it back (shortly), so note whether
+                            // playback should resume
+                            mCurrentAudioFocusState = AUDIO_NO_FOCUS_NO_DUCK;
+                            mPlayOnFocusGain = mExoPlayer != null && mExoPlayer.getPlayWhenReady();
+                            break;
+                        case AudioManager.AUDIOFOCUS_LOSS:
+                            // Lost audio focus, probably "permanently"
+                            mCurrentAudioFocusState = AUDIO_NO_FOCUS_NO_DUCK;
+                            break;
+                    }
+
+                    if (mExoPlayer != null) {
+                        // Update the player state based on the change
+                        configurePlayerState();
+                    }
+                }
+            };
+
+    /**
+     * Releases resources used by the service for playback, which is mostly just the WiFi lock for
+     * local playback. If requested, the ExoPlayer instance is also released.
+     *
+     * @param releasePlayer Indicates whether the player should also be released
+     */
+    private void releaseResources(boolean releasePlayer) {
+        LogHelper.d(TAG, "releaseResources. releasePlayer=", releasePlayer);
+
+        // Stops and releases player (if requested and available).
+        if (releasePlayer && mExoPlayer != null) {
+            mExoPlayer.release();
+            mExoPlayer.removeListener(mEventListener);
+            mExoPlayer = null;
+            mExoPlayerNullIsStopped = true;
+            mPlayOnFocusGain = false;
         }
 
-        // we can also release the Wifi lock, if we're holding it
         if (mWifiLock.isHeld()) {
             mWifiLock.release();
         }
     }
 
-    /**
-     * Try to get the system audio focus.
-     */
-    private void tryToGetAudioFocus() {
-        LogHelper.d(TAG, "tryToGetAudioFocus");
-        if (mAudioFocus != AUDIO_FOCUSED) {
-            int result = mAudioManager.requestAudioFocus(this, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
-            if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-                mAudioFocus = AUDIO_FOCUSED;
-            }
-        }
-    }
-
-    /**
-     * Give up the audio focus.
-     */
-    private void giveUpAudioFocus() {
-        LogHelper.d(TAG, "giveUpAudioFocus");
-        if (mAudioFocus == AUDIO_FOCUSED) {
-            if (mAudioManager.abandonAudioFocus(this) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-                mAudioFocus = AUDIO_NO_FOCUS_NO_DUCK;
-            }
-        }
-    }
-
     private void registerAudioNoisyReceiver() {
         if (!mAudioNoisyReceiverRegistered) {
-            mService.registerReceiver(mAudioNoisyReceiver, mAudioNoisyIntentFilter);
+            mContext.registerReceiver(mAudioNoisyReceiver, mAudioNoisyIntentFilter);
             mAudioNoisyReceiverRegistered = true;
         }
     }
 
     private void unregisterAudioNoisyReceiver() {
         if (mAudioNoisyReceiverRegistered) {
-            mService.unregisterReceiver(mAudioNoisyReceiver);
+            mContext.unregisterReceiver(mAudioNoisyReceiver);
             mAudioNoisyReceiverRegistered = false;
         }
     }
 
-    @Override
-    public void onAudioFocusChange(int focusChange) {
-        LogHelper.d(TAG, "onAudioFocusChange. focusChange=", focusChange);
-        if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
-            // We have gained focus:
-            mAudioFocus = AUDIO_FOCUSED;
-
-        } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS ||
-                focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT ||
-                focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
-            // We have lost focus. If we can duck (low playback volume), we can keep playing.
-            // Otherwise, we need to pause the playback.
-            boolean canDuck = focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK;
-            mAudioFocus = canDuck ? AUDIO_NO_FOCUS_CAN_DUCK : AUDIO_NO_FOCUS_NO_DUCK;
-
-            // If we are playing, we need to reset media player by calling configMediaPlayerState
-            // with mAudioFocus properly set.
-            if (mState == PlaybackState.STATE_PLAYING && !canDuck) {
-                // If we don't have audio focus and can't duck, we save the information that
-                // we were playing, so that we can resume playback once we get the focus back.
-                mPlayOnFocusGain = true;
-            }
-        } else {
-            LogHelper.e(TAG, "onAudioFocusChange: Ignoring unsupported focusChange: ", focusChange);
+    private final class ExoPlayerEventListener implements Player.EventListener {
+        @Override
+        public void onTimelineChanged(Timeline timeline, Object manifest, int reason) {
+            // Nothing to do.
         }
 
-        configMediaPlayerState();
-    }
+        @Override
+        public void onTracksChanged(
+                TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
+            // Nothing to do.
+        }
 
-    /**
-     * Reconfigures MediaPlayer according to audio focus settings and
-     * starts/restarts it. This method starts/restarts the MediaPlayer
-     * respecting the current audio focus state. So if we have focus, it will
-     * play normally; if we don't have focus, it will either leave the
-     * MediaPlayer paused or set it to a low volume, depending on what is
-     * allowed by the current focus settings. This method assumes mPlayer !=
-     * null, so if you are calling it, you have to do so from a context where
-     * you are sure this is the case.
-     */
-    private void configMediaPlayerState() {
-        LogHelper.d(TAG, "configMediaPlayerState. mAudioFocus=", mAudioFocus);
-        if (mAudioFocus == AUDIO_NO_FOCUS_NO_DUCK) {
-            // If we don't have audio focus and can't duck, we have to pause,
-            if (mState == PlaybackState.STATE_PLAYING) {
-                pause();
-            }
-        } else {  // we have audio focus:
-            if (mAudioFocus == AUDIO_NO_FOCUS_CAN_DUCK) {
-                mMediaPlayer.setVolume(VOLUME_DUCK, VOLUME_DUCK); // we'll be relatively quiet
-            } else {
-                if (mMediaPlayer != null) {
-                    mMediaPlayer.setVolume(VOLUME_NORMAL, VOLUME_NORMAL); // we can be loud again
-                } // else do something for remote client.
-            }
-            // If we were playing when we lost focus, we need to resume playing.
-            if (mPlayOnFocusGain) {
-                if (mMediaPlayer != null && !mMediaPlayer.isPlaying()) {
-                    LogHelper.d(TAG,"configMediaPlayerState startMediaPlayer. seeking to ",
-                            mCurrentPosition);
-                    if (mCurrentPosition == mMediaPlayer.getCurrentPosition()) {
-                        mMediaPlayer.start();
-                        mState = PlaybackState.STATE_PLAYING;
-                    } else {
-                        mMediaPlayer.seekTo(mCurrentPosition);
-                        mState = PlaybackState.STATE_BUFFERING;
+        @Override
+        public void onLoadingChanged(boolean isLoading) {
+            // Nothing to do.
+        }
+
+        @Override
+        public void onPlayerStateChanged(boolean playWhenReady, int playbackState) {
+            switch (playbackState) {
+                case Player.STATE_IDLE:
+                case Player.STATE_BUFFERING:
+                case Player.STATE_READY:
+                    if (mCallback != null) {
+                        mCallback.onPlaybackStatusChanged(getState());
                     }
-                }
-                mPlayOnFocusGain = false;
+                    break;
+                case Player.STATE_ENDED:
+                    // The media player finished playing the current song.
+                    if (mCallback != null) {
+                        mCallback.onCompletion();
+                    }
+                    break;
             }
         }
-        if (mCallback != null) {
-            mCallback.onPlaybackStatusChanged(mState);
-        }
-    }
 
-    @Override
-    public void onPrepared(MediaPlayer mp) {
-        LogHelper.d(TAG, "onPrepared from MediaPlayer");
-        // The media player is done preparing. That means we can start playing if we
-        // have audio focus.
-        configMediaPlayerState();
-    }
+        @Override
+        public void onPlayerError(ExoPlaybackException error) {
+            final String what;
+            switch (error.type) {
+                case ExoPlaybackException.TYPE_SOURCE:
+                    what = error.getSourceException().getMessage();
+                    break;
+                case ExoPlaybackException.TYPE_RENDERER:
+                    what = error.getRendererException().getMessage();
+                    break;
+                case ExoPlaybackException.TYPE_UNEXPECTED:
+                    what = error.getUnexpectedException().getMessage();
+                    break;
+                default:
+                    what = "Unknown: " + error;
+            }
 
-    @Override
-    public void onCompletion(MediaPlayer mp) {
-        LogHelper.d(TAG, "onCompletion from MediaPlayer");
-        // The media player finished playing the current song, so we go ahead
-        // and start the next.
-        if (mCallback != null) {
-            mCallback.onCompletion();
-        }
-    }
-
-    @Override
-    public boolean onError(MediaPlayer mp, int what, int extra) {
-        LogHelper.e(TAG, "Media player error: what=" + what + ", extra=" + extra);
-
-        if (mCallback != null) {
-            mCallback.onError("MediaPlayer error " + what + " (" + extra + ")");
+            LogHelper.e(TAG, "ExoPlayer error: what=" + what);
+            if (mCallback != null) {
+                mCallback.onError("ExoPlayer error " + what);
+            }
         }
 
-        return true; // true indicates we handled the error
-    }
-
-    @Override
-    public void onSeekComplete(MediaPlayer mp) {
-        LogHelper.d(TAG, "onSeekComplete from MediaPlayer:", mp.getCurrentPosition());
-        mCurrentPosition = mp.getCurrentPosition();
-        if (mState == PlaybackState.STATE_BUFFERING) {
-            mMediaPlayer.start();
-            mState = PlaybackState.STATE_PLAYING;
+        @Override
+        public void onPositionDiscontinuity(int reason) {
+            // Nothing to do.
         }
-        if (mCallback != null) {
-            mCallback.onPlaybackStatusChanged(mState);
+
+        @Override
+        public void onPlaybackParametersChanged(PlaybackParameters playbackParameters) {
+            // Nothing to do.
+        }
+
+        @Override
+        public void onSeekProcessed() {
+            // Nothing to do.
+        }
+
+        @Override
+        public void onRepeatModeChanged(int repeatMode) {
+            // Nothing to do.
+        }
+
+        @Override
+        public void onShuffleModeEnabledChanged(boolean shuffleModeEnabled) {
+            // Nothing to do.
         }
     }
 }
