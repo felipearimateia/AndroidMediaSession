@@ -107,6 +107,10 @@ public class MediaPlayerService extends Service implements Playback.Callback {
                 mNotificationManager.getTransportControls().play();
             }
         }
+        else if (action.equalsIgnoreCase(Constants.ACTION_SPEED)) {
+            float value = intent.getFloatExtra(Constants.EXTRA_SPEED_VALUE, 1);
+            mPlayback.setSpeed(value);
+        }
 
         return START_STICKY;
     }

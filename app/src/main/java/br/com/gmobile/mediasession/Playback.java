@@ -93,6 +93,8 @@ public interface Playback {
      */
     String getCurrentMediaId();
 
+    void setSpeed(float value);
+
     interface Callback {
         /**
          * On current music completed.

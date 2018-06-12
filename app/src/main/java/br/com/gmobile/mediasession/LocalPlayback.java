@@ -256,6 +256,14 @@ public final class LocalPlayback implements Playback {
         return mCurrentMediaId;
     }
 
+    @Override
+    public void setSpeed(float value) {
+        if (getState() == PlaybackStateCompat.STATE_PLAYING) {
+            PlaybackParameters parameters = new PlaybackParameters(value, 1f);
+            mExoPlayer.setPlaybackParameters(parameters);
+        }
+    }
+
     private void tryToGetAudioFocus() {
         LogHelper.d(TAG, "tryToGetAudioFocus");
         int result =

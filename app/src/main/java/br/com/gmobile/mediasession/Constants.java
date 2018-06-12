@@ -13,6 +13,8 @@ public class Constants {
     public static final String ACTION_NEXT = "action_next";
     public static final String ACTION_PREVIOUS = "action_previous";
     public static final String ACTION_STOP = "action_stop";
+    public static final String ACTION_SPEED = "action_speed";
+    public static final String EXTRA_SPEED_VALUE = "extra_speed_value";
     public static final String EXTRA_CURRENT_MEDIA_DESCRIPTION = "CURRENT_MEDIA_DESCRIPTION";
     public static final String CUSTOM_METADATA_TRACK_SOURCE = "__SOURCE__";
     public static final String PLAY_MEDIA_METADATA = "PLAY_MEDIA_METADATA";

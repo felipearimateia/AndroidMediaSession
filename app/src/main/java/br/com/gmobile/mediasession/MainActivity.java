@@ -48,7 +48,7 @@ public class MainActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    @OnClick(br.com.gmobile.mediasession.R.id.action_play)
+    @OnClick(R.id.action_play)
     public void onClickPlay(View view) {
 
         Intent intent = new Intent(this, MediaPlayerService.class);
@@ -60,7 +60,7 @@ public class MainActivity extends AppCompatActivity {
         startService(intent);
     }
 
-    @OnClick(br.com.gmobile.mediasession.R.id.action_pause)
+    @OnClick(R.id.action_pause)
     public void onClickPause(View view) {
 
         Intent intent = new Intent(this, MediaPlayerService.class);
@@ -69,11 +69,31 @@ public class MainActivity extends AppCompatActivity {
         startService(intent);
     }
 
-    @OnClick(br.com.gmobile.mediasession.R.id.action_stop)
+    @OnClick(R.id.action_stop)
     public void onClickStop(View view) {
 
         Intent intent = new Intent(this, MediaPlayerService.class);
         intent.setAction(Constants.ACTION_STOP);
+
+        startService(intent);
+    }
+
+    @OnClick(R.id.action_speed)
+    public void onClickSpeed(View view) {
+
+        Intent intent = new Intent(this, MediaPlayerService.class);
+        intent.setAction(Constants.ACTION_SPEED);
+        intent.putExtra(Constants.EXTRA_SPEED_VALUE, 1.5f);
+
+        startService(intent);
+    }
+
+    @OnClick(R.id.action_speed_normal)
+    public void onClickSpeedNormal(View view) {
+
+        Intent intent = new Intent(this, MediaPlayerService.class);
+        intent.setAction(Constants.ACTION_SPEED);
+        intent.putExtra(Constants.EXTRA_SPEED_VALUE, 1f);
 
         startService(intent);
     }

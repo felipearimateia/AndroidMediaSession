@@ -25,4 +25,16 @@
         android:layout_height="wrap_content"
         android:text="Stop"/>
 
+    <Button
+        android:id="@+id/action_speed_normal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Speed 1"/>
+
+    <Button
+        android:id="@+id/action_speed"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Speed 1.5"/>
+
 </LinearLayout>
